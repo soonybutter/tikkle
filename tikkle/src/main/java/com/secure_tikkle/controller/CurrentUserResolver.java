@@ -43,5 +43,7 @@ public class CurrentUserResolver {
             return users.findByProviderAndUserKey(Provider.KAKAO, String.valueOf(a.get("id"))).orElse(null);
         }
         return null;
+        
+        
     }
 }
