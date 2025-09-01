@@ -58,9 +58,17 @@ public class GoalController {
 
   // 절약 저금(저축 로그) 기록 
   @PostMapping("/savings-logs")
-  public SavingsLog add(@AuthenticationPrincipal OAuth2User user,
-                        @Valid @RequestBody CreateSavingsLogRequest req) {
-    return goalService.addLog(uid(user), req);
+  public SavingsLogDto add(@AuthenticationPrincipal OAuth2User user,
+                           @Valid @RequestBody CreateSavingsLogRequest req) {
+    var saved = goalService.addLog(uid(user), req);
+    
+    return new SavingsLogDto(
+        saved.getId(),
+        req.goalId(),               
+        saved.getAmount(),
+        saved.getMemo(),
+        saved.getCreatedAt()
+    );
   }
 
   // 목표별 저축 로그 목록 (페이징) 
@@ -74,10 +82,19 @@ public class GoalController {
 
   // 저축 로그 수정 
   @PatchMapping("/savings-logs/{logId}")
-  public SavingsLog update(@AuthenticationPrincipal OAuth2User user,
-                           @PathVariable Long logId,
-                           @Valid @RequestBody UpdateSavingsLogRequest body) {
-    return goalService.updateLog(uid(user), logId, body.amount(), body.memo());
+  public SavingsLogDto update(@AuthenticationPrincipal OAuth2User user,
+                              @PathVariable Long logId,
+                              @RequestBody Map<String,Object> body) {
+    Long amount = body.get("amount")==null?null:((Number)body.get("amount")).longValue();
+    String memo = (String) body.get("memo");
+    var updated = goalService.updateLog(uid(user), logId, amount, memo);
+    return new SavingsLogDto(
+        updated.getId(),
+        updated.getGoal().getId(),   // 식별자 접근은 LAZY 초기화 없이 안전하도록
+        updated.getAmount(),
+        updated.getMemo(),
+        updated.getCreatedAt()
+    );
   }
 
   // 저축 로그 삭제 
