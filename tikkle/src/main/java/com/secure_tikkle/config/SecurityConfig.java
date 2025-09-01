@@ -25,6 +25,7 @@ public class SecurityConfig {
     private static final Logger log = LoggerFactory.getLogger(SecurityConfig.class);
     private final LoginSuccessHandler loginSuccessHandler;
     
+    
     @Bean
     public SecurityFilterChain filterChain(HttpSecurity http) throws Exception {
     	http
