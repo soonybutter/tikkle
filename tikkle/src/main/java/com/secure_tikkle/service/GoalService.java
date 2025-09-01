@@ -71,11 +71,11 @@ public class GoalService {
     @Transactional(readOnly = true)
     public GoalDetail detail(Long userId, Long goalId) {
         Goal g = goalRepository.findByIdAndUser_Id(goalId, userId)
-                .orElseThrow(() -> new IllegalArgumentException("goal not found"));
-        long current = g.getCurrentAmount() == null ? 0L : g.getCurrentAmount();
-        long target  = g.getTargetAmount() == null ? 0L : g.getTargetAmount();
-        int progress = (target == 0) ? 0 : (int) Math.min(100, (current * 100 / target));
-        return new GoalDetail(g.getId(), g.getTitle(), g.getTargetAmount(), current, progress);
+            .orElseThrow(() -> new IllegalArgumentException("goal not found"));
+        long current = g.getCurrentAmount()==null ? 0L : g.getCurrentAmount();
+        long target  = g.getTargetAmount()==null ? 0L : g.getTargetAmount();
+        int progress = progressOf(current, target);
+        return new GoalDetail(g.getId(), g.getTitle(), target, current, progress);
     }
 
     // 절약 저금 기록
@@ -97,7 +97,8 @@ public class GoalService {
         badgeService.evaluateOnSavingsLog(userId);
         return saved;
     }
-
+    
+    
     // 로그 페이지 조회 (DTO)
     @Transactional(readOnly = true)
     public Page<SavingsLogDto> logs(Long userId, Long goalId, int page, int size) {
@@ -147,12 +148,24 @@ public class GoalService {
         goal.setCurrentAmount(cur - before + after);
         return log;
     }
+    
+	// 공통 진행률 계산 함수 추가
+	private int progressOf(long cur, long tgt) {
+	    if (tgt <= 0) return 0;                 // 목표액 0 또는 음수면 0%
+	    double pct = (cur * 100.0) / tgt;       // 소수 퍼센트 계산
+	    int rounded = (int) Math.round(pct);    // 반올림
+	    if (cur > 0 && rounded == 0) return 1;  // 1% 미만이면 1% 보정
+	    return Math.min(100, Math.max(0, rounded)); // 0~100 범위로 클램프
+	}
 
     
+    //  toSummary에서 progress 계산 변경
     private GoalSummaryDto toSummary(Goal g) {
-        long cur = g.getCurrentAmount() == null ? 0L : g.getCurrentAmount();
-        long tgt = g.getTargetAmount() == null ? 0L : g.getTargetAmount();
-        int prog = (tgt == 0) ? 0 : (int) Math.min(100, (cur * 100) / tgt);
+        long cur = g.getCurrentAmount()==null ? 0L : g.getCurrentAmount();
+        long tgt = g.getTargetAmount()==null ? 0L : g.getTargetAmount();
+        int prog = progressOf(cur, tgt);
         return new GoalSummaryDto(g.getId(), g.getTitle(), tgt, cur, prog);
+      
     }
+    
 }
