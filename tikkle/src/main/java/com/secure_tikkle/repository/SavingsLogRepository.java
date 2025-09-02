@@ -15,14 +15,16 @@ import com.secure_tikkle.domain.SavingsLog;
 // 합계/통계가 필요하면 @Query 추가로 확장한다.
 public interface SavingsLogRepository extends JpaRepository<SavingsLog, Long> {
 	
-	  // goal.id 기준으로 조회
-	  List<SavingsLog> findByGoal_IdOrderByIdDesc(Long goalId);
+	    List<SavingsLog> findByGoal_IdOrderByIdDesc(Long goalId);
 
-	  // 페이징
-	  Page<SavingsLog> findByGoal_Id(Long goalId, Pageable pageable);
+	    Page<SavingsLog> findByGoal_Id(Long goalId, Pageable pageable);
+	    
+	    long countByGoal_User_IdAndAmountGreaterThan(Long userId, Long amount);
 
-	  // 합계
-	  @Query("select coalesce(sum(s.amount),0) from SavingsLog s where s.goal.id = :goalId")
-	  Long sumByGoalId(@Param("goalId") Long goalId);
+	    long countByGoal_User_IdAndMemoContaining(Long userId, String keyword);
+
+	    @Query("select coalesce(sum(s.amount),0) from SavingsLog s " +
+	           "where s.goal.user.id = :userId and s.amount > 0")
+	    Long sumAmountByUser(@Param("userId") Long userId);
 	  
 }

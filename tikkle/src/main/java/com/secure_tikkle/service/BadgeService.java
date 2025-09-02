@@ -1,77 +1,86 @@
 package com.secure_tikkle.service;
 
-import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.List;
 
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
+import com.secure_tikkle.domain.Badge;
+import com.secure_tikkle.domain.BadgeConditionType;
 import com.secure_tikkle.domain.User;
 import com.secure_tikkle.domain.UserBadge;
-import com.secure_tikkle.repository.SavingsLogQuery;
+import com.secure_tikkle.repository.BadgeRepository;
+import com.secure_tikkle.repository.GoalRepository;
+import com.secure_tikkle.repository.SavingsLogRepository;
 import com.secure_tikkle.repository.UserBadgeRepository;
+import com.secure_tikkle.repository.UserRepository;
 
-import jakarta.transaction.Transactional;
 import lombok.RequiredArgsConstructor;
 
-@Service 
+@Service
 @RequiredArgsConstructor
 public class BadgeService {
 
-	private final UserBadgeRepository userBadges;
-	  private final SavingsLogQuery logQuery;
+	private final BadgeRepository badgeRepository;        // 모든 배지 + 여부
+	private final UserBadgeRepository userBadgeRepository; // 획득한 배지만
+    private final SavingsLogRepository savingsLogRepository;
+    private final GoalRepository goalRepository;
+    private final UserRepository userRepository;
+    
+    // 모든 배지 + 내가 땄는지 여부 표시
+    public java.util.List<com.secure_tikkle.dto.BadgeDto> listForUser(Long userId) {
+      return badgeRepository.findAllWithEarned(userId);
+    }
 
-	  // SavingsLog 생성 이후 호출: 조건 만족 시 배지 발급 
-	  @Transactional
-	  public List<UserBadge> evaluateOnSavingsLog(Long userId) {
-	    
-		  List<UserBadge> newly = new ArrayList<>();
+    /* 획득한 배지만
+    public java.util.List<com.secure_tikkle.dto.BadgeDto> earnedForUser(Long userId) {
+      return userBadgeRepository.findEarnedDtos(userId);
+    }
+    */
 
-	    // 1) FIRST_SAVE
-	    if (!userBadges.existsByUser_IdAndCode(userId, "FIRST_SAVE")) {
-	      long total = logQuery.countAllByUser(userId);
-	      if (total >= 1) newly.add(grant(userId, "FIRST_SAVE", "첫 저축 성공", null));
-	    }
+    /** 저축 로그 발생 시 배지 평가(필요시 다른 지점에서도 호출 가능) */
+    @Transactional
+    public List<Badge> evaluateOnSavingsLog(Long userId) {
+        List<Badge> unlockedNow = new ArrayList<>();
 
-	    // 2) COFFEE_10 (메모에 '커피' 10회)
-	    if (!userBadges.existsByUser_IdAndCode(userId, "COFFEE_10")) {
-	      long coffee = logQuery.countByUserAndMemoContains(userId, "커피");
-	      if (coffee >= 10) newly.add(grant(userId, "COFFEE_10", "커피 10번 참기", null));
-	    }
+        User userRef = userRepository.getReferenceById(userId);
 
-	    // 3) STREAK_7 (7일 연속)
-	    if (!userBadges.existsByUser_IdAndCode(userId, "STREAK_7")) {
-	      if (hasStreak(userId, 7)) newly.add(grant(userId, "STREAK_7", "7일 연속 저축", null));
-	    }
+        // 집계 값 미리 계산
+        long savingsCount = savingsLogRepository.countByGoal_User_IdAndAmountGreaterThan(userId, 0L);
+        long coffeeCount  = savingsLogRepository.countByGoal_User_IdAndMemoContaining(userId, "커피");
+        long completed    = goalRepository.countCompletedByUser(userId);
+        long sumAmount    = savingsLogRepository.sumAmountByUser(userId);
 
-	    return newly;
-	  }
+        for (Badge b : badgeRepository.findAll()) {
+            boolean meet = false;
+            Long th = b.getThreshold() == null ? 0L : b.getThreshold();
 
-	  private UserBadge grant(Long userId, String code, String name, String iconUrl) {
-	    
-		  User u = new User(); u.setId(userId); // 프록시 대용
-		  
-	    return userBadges.save(UserBadge.builder()
-	      .user(u).code(code).name(name).iconUrl(iconUrl).build());
-	  }
+            BadgeConditionType t = b.getConditionType();
+            switch (t) {
+                case SAVINGS_COUNT -> meet = savingsCount >= th;
+                case SAVINGS_SUM   -> meet = sumAmount   >= th;
+                case MEMO_COUNT    -> {
+                    String kw = b.getKeyword() == null ? "" : b.getKeyword();
+                    // 위에선 “커피”로 단일 집계했지만, 배지마다 키워드가 다를 수 있으면 아래처럼 직접 카운트
+                    long cnt = kw.isBlank() ? 0L
+                            : savingsLogRepository.countByGoal_User_IdAndMemoContaining(userId, kw);
+                    meet = cnt >= th;
+                }
+                case GOAL_COMPLETED -> meet = completed >= th;
+            }
 
-	  // 단순 연속성 체크: 오늘 포함 역방향으로 하루 1개 이상 로그가 7일 연속 존재하는지 
-	  private boolean hasStreak(Long userId, int days) {
-		  
-	    LocalDate today = LocalDate.now();
-	    
-	    for (int i=0; i<days; i++) {
-	      LocalDate d = today.minusDays(i);
-	      LocalDateTime from = d.atStartOfDay();
-	      LocalDateTime to   = d.plusDays(1).atStartOfDay().minusNanos(1);
-	      
-	      var logs = logQuery.logsIn(userId, from, to);
-	      if (logs.isEmpty()) return false;
-	      
-	    }
-	    
-	    return true;
-	    
-	  }
+            if (meet && !userBadgeRepository.existsByUser_IdAndBadge_Id(userId, b.getId())) {
+            	var ub = UserBadge.builder()
+            	        .user(userRef)
+            	        .badge(b)
+            	        .build();
+            	ub.setUnlockedAt(LocalDateTime.now());
+            	userBadgeRepository.save(ub);
+                unlockedNow.add(b);
+            }
+        }
+        return unlockedNow; // 컨트롤러에서 신규 배지 안내 등을 하고 싶으면 사용
+    }
 }
