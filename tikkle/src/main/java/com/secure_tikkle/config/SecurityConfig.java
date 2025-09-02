@@ -3,6 +3,7 @@ package com.secure_tikkle.config;
 import com.secure_tikkle.security.CustomOAuth2UserService;
 import com.secure_tikkle.security.LoginSuccessHandler;
 
+import jakarta.servlet.http.HttpServletResponse;
 import lombok.RequiredArgsConstructor;
 
 import java.net.URLEncoder;
@@ -43,15 +44,17 @@ public class SecurityConfig {
     			  .successHandler(loginSuccessHandler)  
     			  .failureUrl("/auth/failure")
     	  )
-    	  .logout(l -> l
-    			    .logoutUrl("/api/logout")   // 기본: POST로만 처리, deprecated API 없음
-    			    .deleteCookies("JSESSIONID")
-    			    .invalidateHttpSession(true)
-    			    .logoutSuccessHandler((req,res,auth) -> {
-    			        res.setStatus(200);
-    			        res.getWriter().write("LOGOUT OK");
-    			    })
-    			  );
+    	  .logout(logout -> logout
+    	            .logoutUrl("/api/logout")           // 로그아웃 URL
+    	            .deleteCookies("JSESSIONID")        // 세션 쿠키 제거
+    	            .invalidateHttpSession(true)        // 서버 세션 무효화
+    	            .clearAuthentication(true)
+    	            .logoutSuccessHandler((req, res, auth) -> {
+    	                res.setStatus(HttpServletResponse.SC_OK);
+    	                res.setContentType("application/json;charset=UTF-8");
+    	                res.getWriter().write("{\"ok\":true}");
+    	  })
+    	);
             
         http.cors(c -> {});
         http.csrf(csrf -> csrf.disable());
