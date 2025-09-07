@@ -1,5 +1,6 @@
 package com.secure_tikkle.domain;
 
+import jakarta.persistence.CascadeType;
 import jakarta.persistence.Entity;
 import jakarta.persistence.FetchType;
 import jakarta.persistence.GeneratedValue;
@@ -7,6 +8,7 @@ import jakarta.persistence.GenerationType;
 import jakarta.persistence.Id;
 import jakarta.persistence.JoinColumn;
 import jakarta.persistence.ManyToOne;
+import jakarta.persistence.OneToMany;
 import jakarta.persistence.Version;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
@@ -36,5 +38,8 @@ public class Goal {
 	  
 	  @Version
 	  private Long version;
+	  
+	  @OneToMany(mappedBy = "goal", cascade = CascadeType.ALL, orphanRemoval = true)
+	  private java.util.List<SavingsLog> logs = new java.util.ArrayList<>();
 	  
 }

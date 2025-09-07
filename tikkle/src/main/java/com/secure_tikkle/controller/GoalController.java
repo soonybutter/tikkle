@@ -1,109 +1,90 @@
 package com.secure_tikkle.controller;
 
+import java.net.URI;
 import java.util.List;
 import java.util.Map;
 
 import org.springframework.data.domain.Page;
+import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.security.oauth2.core.user.OAuth2User;
-import org.springframework.validation.annotation.Validated;
+
 import org.springframework.web.bind.annotation.*;
 
-import com.secure_tikkle.domain.Goal;
-import com.secure_tikkle.domain.SavingsLog;
+
 import com.secure_tikkle.dto.CreateGoalRequest;
 import com.secure_tikkle.dto.CreateSavingsLogRequest;
 import com.secure_tikkle.dto.GoalDetail;
 
 import com.secure_tikkle.dto.GoalSummaryDto;
 import com.secure_tikkle.dto.SavingsLogDto;
-import com.secure_tikkle.dto.UpdateSavingsLogRequest;
+
 
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import com.secure_tikkle.service.GoalService;
 
-@Validated
+
 @RestController
-@RequestMapping("/api")
+@RequestMapping("/api/goals")
 @RequiredArgsConstructor
 public class GoalController {
 
-  private final GoalService goalService;
+	private final GoalService goalService;
 
-  // CustomOAuth2UserService에서 넣어준 평탄화 속성(우리 DB PK)
-  private static Long uid(OAuth2User user) {
-    return ((Number) user.getAttributes().get("id")).longValue();
-  }
+    private static Long uid(OAuth2User u) {
+        return ((Number) u.getAttributes().get("id")).longValue();
+    }
 
-  // 목표 생성 
-  @PostMapping("/goals")
-  public GoalSummaryDto create(@AuthenticationPrincipal OAuth2User user,
-                               @Valid @RequestBody CreateGoalRequest req) {
-      return goalService.create(uid(user), req);   // DTO 반환
-  }
+    // 1) 내 목표 목록
+    @GetMapping
+    public List<GoalSummaryDto> list(@AuthenticationPrincipal OAuth2User user) {
+        return goalService.list(uid(user));
+    }
 
-  // 내 목표 목록 (요약 + 진행률) 
-  @GetMapping("/goals")
-  public List<GoalSummaryDto> list(@AuthenticationPrincipal OAuth2User user) {
-    return goalService.list(uid(user));
-  }
+    // 2) 단건 상세
+    @GetMapping("/{id}")
+    public GoalDetail detail(@AuthenticationPrincipal OAuth2User user,
+                             @PathVariable Long id) {
+        return goalService.detail(uid(user), id);
+    }
 
-  // 목표 상세 (진행률 포함) 
-  @GetMapping("/goals/{id}")
-  public GoalDetail detail(@AuthenticationPrincipal OAuth2User user,
-                           @PathVariable Long id) {
-    return goalService.detail(uid(user), id);
-  }
+    // 3) 로그 페이지
+    @GetMapping("/{id}/logs")
+    public Page<SavingsLogDto> logs(@AuthenticationPrincipal OAuth2User user,
+                                    @PathVariable Long id,
+                                    @RequestParam(defaultValue = "0") int page,
+                                    @RequestParam(defaultValue = "10") int size) {
+        return goalService.logs(uid(user), id, page, size);
+    }
 
-  // 절약 저금(저축 로그) 기록 
-  @PostMapping("/savings-logs")
-  public SavingsLogDto add(@AuthenticationPrincipal OAuth2User user,
-                           @Valid @RequestBody CreateSavingsLogRequest req) {
-    var saved = goalService.addLog(uid(user), req);
+    // 4) 생성
+    @PostMapping
+    public ResponseEntity<GoalSummaryDto> create(@AuthenticationPrincipal OAuth2User user,
+                                                 @Valid @RequestBody CreateGoalRequest body) {
+        GoalSummaryDto created = goalService.create(uid(user), body);
+        return ResponseEntity
+                .created(URI.create("/api/goals/" + created.id()))
+                .body(created);
+    }
+
+    // 5) 삭제
+    @DeleteMapping("/{id}")
+    public ResponseEntity<Void> delete(@AuthenticationPrincipal OAuth2User user,
+                                       @PathVariable Long id) {
+        goalService.deleteGoal(uid(user), id);
+        return ResponseEntity.noContent().build();
+    }
     
-    return new SavingsLogDto(
-        saved.getId(),
-        req.goalId(),               
-        saved.getAmount(),
-        saved.getMemo(),
-        saved.getCreatedAt()
-    );
-  }
+    // 6) 수정
+    @PatchMapping("/{id}")
+    public ResponseEntity<Void> update(@AuthenticationPrincipal OAuth2User user,
+                                       @PathVariable Long id,
+                                       @RequestBody UpdateGoalRequest body) {
+      goalService.updateGoal(uid(user), id, body.title(), body.targetAmount());
+      return ResponseEntity.noContent().build();
+    }
 
-  // 목표별 저축 로그 목록 (페이징) 
-  @GetMapping("/goals/{id}/logs")
-  public Page<SavingsLogDto> logs(@AuthenticationPrincipal OAuth2User user,
-                                  @PathVariable Long id,
-                                  @RequestParam(defaultValue="0") int page,
-                                  @RequestParam(defaultValue="10") int size) {
-    return goalService.logs(uid(user), id, page, size);
-  }
-
-  // 저축 로그 수정 
-  @PatchMapping("/savings-logs/{logId}")
-  public SavingsLogDto update(@AuthenticationPrincipal OAuth2User user,
-                              @PathVariable Long logId,
-                              @RequestBody Map<String,Object> body) {
-    Long amount = body.get("amount")==null?null:((Number)body.get("amount")).longValue();
-    String memo = (String) body.get("memo");
-    var updated = goalService.updateLog(uid(user), logId, amount, memo);
-    return new SavingsLogDto(
-        updated.getId(),
-        updated.getGoal().getId(),   // 식별자 접근은 LAZY 초기화 없이 안전하도록
-        updated.getAmount(),
-        updated.getMemo(),
-        updated.getCreatedAt()
-    );
-  }
-
-  // 저축 로그 삭제 
-  @DeleteMapping("/savings-logs/{logId}")
-  public Map<String,Object> delete(@AuthenticationPrincipal OAuth2User user,
-                                   @PathVariable Long logId) {
-    goalService.deleteLog(uid(user), logId);
-    return Map.of("ok", true);
-  }
-
+    public record UpdateGoalRequest(String title, Long targetAmount) {}
   
 }

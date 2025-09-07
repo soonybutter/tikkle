@@ -45,6 +45,40 @@ public class GoalService {
         return toSummary(saved); //  엔티티 -> DTO
     }
     
+    // 삭제
+    @Transactional
+    public void deleteGoal(Long userId, Long goalId) {
+        Goal goal = goalRepository.findByIdAndUser_Id(goalId, userId)
+            .orElseThrow(() -> new org.springframework.web.server.ResponseStatusException(
+                org.springframework.http.HttpStatus.NOT_FOUND, "goal not found"));
+
+        // FK 제약 회피용: 먼저 해당 목표의 저축기록 제거
+        savingsLogRepository.deleteByGoal_Id(goalId);
+
+        goalRepository.delete(goal);
+
+        // 배지 재평가(완료 목표 수/합계 등 변동 반영)
+        badgeService.evaluateOnSavingsLog(userId);
+    }
+    
+    // 수정
+    @Transactional
+    public void updateGoal(Long userId, Long goalId, String title, Long targetAmount) {
+        Goal g = goalRepository.findByIdAndUser_Id(goalId, userId)
+            .orElseThrow(() -> new org.springframework.web.server.ResponseStatusException(
+                org.springframework.http.HttpStatus.NOT_FOUND, "goal not found"));
+
+        if (title != null && !title.isBlank()) g.setTitle(title.trim());
+        if (targetAmount != null) {
+            if (targetAmount <= 0) {
+                throw new org.springframework.web.server.ResponseStatusException(
+                    org.springframework.http.HttpStatus.BAD_REQUEST, "targetAmount must be > 0");
+            }
+            g.setTargetAmount(targetAmount);
+        }
+        // 진행률은 조회 시 계산이므로 저장만 하면 됨.
+    }
+    
     // 내 목표 목록 (요약)
     @Transactional(readOnly = true)
     public List<GoalSummaryDto> list(Long userId) {
