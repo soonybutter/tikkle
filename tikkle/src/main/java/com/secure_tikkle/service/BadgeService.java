@@ -29,27 +29,22 @@ public class BadgeService {
     private final GoalRepository goalRepository;
     private final UserRepository userRepository;
     
+    
     // 모든 배지 + 내가 땄는지 여부 표시
     public java.util.List<com.secure_tikkle.dto.BadgeDto> listForUser(Long userId) {
       return badgeRepository.findAllWithEarned(userId);
     }
 
-    /* 획득한 배지만
-    public java.util.List<com.secure_tikkle.dto.BadgeDto> earnedForUser(Long userId) {
-      return userBadgeRepository.findEarnedDtos(userId);
-    }
-    */
-
-    /** 저축 로그 발생 시 배지 평가(필요시 다른 지점에서도 호출 가능) */
+    // 저축 로그 발생 시 배지 평가
     @Transactional
     public List<Badge> evaluateOnSavingsLog(Long userId) {
+    	
         List<Badge> unlockedNow = new ArrayList<>();
 
         User userRef = userRepository.getReferenceById(userId);
 
         // 집계 값 미리 계산
         long savingsCount = savingsLogRepository.countByGoal_User_IdAndAmountGreaterThan(userId, 0L);
-        long coffeeCount  = savingsLogRepository.countByGoal_User_IdAndMemoContaining(userId, "커피");
         long completed    = goalRepository.countCompletedByUser(userId);
         long sumAmount    = savingsLogRepository.sumAmountByUser(userId);
 
@@ -59,16 +54,31 @@ public class BadgeService {
 
             BadgeConditionType t = b.getConditionType();
             switch (t) {
-                case SAVINGS_COUNT -> meet = savingsCount >= th;
-                case SAVINGS_SUM   -> meet = sumAmount   >= th;
-                case MEMO_COUNT    -> {
-                    String kw = b.getKeyword() == null ? "" : b.getKeyword();
-                    // 위에선 “커피”로 단일 집계했지만, 배지마다 키워드가 다를 수 있으면 아래처럼 직접 카운트
-                    long cnt = kw.isBlank() ? 0L
-                            : savingsLogRepository.countByGoal_User_IdAndMemoContaining(userId, kw);
-                    meet = cnt >= th;
-                }
-                case GOAL_COMPLETED -> meet = completed >= th;
+	            case SAVINGS_COUNT -> meet = savingsCount >= th;
+	            case SAVINGS_SUM   -> meet = sumAmount   >= th;
+	
+	            case MEMO_COUNT -> {
+	                
+	                String kwRaw = b.getKeyword();
+	
+	                // 콤마/파이프 구분자 모두 허용 -> 소문자 변환 -> 정규식 특수문자 이스케이프 -> OR로 묶기
+	                String pattern = java.util.Arrays.stream(
+	                            kwRaw == null ? new String[0] : kwRaw.split(",|\\|")
+	                        )
+	                        .map(String::trim)
+	                        .filter(s -> !s.isEmpty())
+	                        .map(String::toLowerCase)
+	                        .map(s -> s.replaceAll("[.*+?^${}()\\[\\]\\\\|]", "\\\\$0"))
+	                        .collect(java.util.stream.Collectors.joining("|")); // "a|b|c"
+	
+	                long cnt = pattern.isBlank()
+	                        ? 0L
+	                        : savingsLogRepository.countByUserMemoRegex(userId, pattern);
+	
+	                meet = cnt >= th;
+	            }
+	
+	            case GOAL_COMPLETED -> meet = completed >= th;
             }
 
             if (meet && !userBadgeRepository.existsByUser_IdAndBadge_Id(userId, b.getId())) {
@@ -81,6 +91,9 @@ public class BadgeService {
                 unlockedNow.add(b);
             }
         }
-        return unlockedNow; // 컨트롤러에서 신규 배지 안내 등을 하고 싶으면 사용
+        return unlockedNow; 
     }
+    
+    
+    
 }

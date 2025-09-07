@@ -40,9 +40,10 @@ public class SecurityConfig {
     	      .anyRequest().authenticated()
     	  )
     	  .oauth2Login(oauth -> oauth
-    			  .userInfoEndpoint(ui -> ui.userService(customOAuth2UserService))
-    			  .successHandler(loginSuccessHandler)  
-    			  .failureUrl("/auth/failure")
+    			  .successHandler((req, res, auth) -> {
+		          String front = System.getenv().getOrDefault("FRONT_ORIGIN", "http://localhost:5173");
+		          res.sendRedirect(front + "/"); //  로그인 성공 시 홈으로
+    			  })
     	  )
     	  .logout(logout -> logout
     	            .logoutUrl("/api/logout")           // 로그아웃 URL
