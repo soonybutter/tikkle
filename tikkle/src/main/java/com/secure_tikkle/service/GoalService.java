@@ -1,5 +1,7 @@
 package com.secure_tikkle.service;
 
+import java.time.Instant;
+import java.time.LocalDateTime;
 import java.util.List;
 
 import org.springframework.data.domain.Page;
@@ -9,6 +11,8 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import com.secure_tikkle.domain.Goal;
+import com.secure_tikkle.domain.RankGroup;
+import com.secure_tikkle.domain.RankGroupMember;
 import com.secure_tikkle.domain.SavingsLog;
 import com.secure_tikkle.domain.User;
 import com.secure_tikkle.dto.CreateGoalRequest;
@@ -16,6 +20,8 @@ import com.secure_tikkle.dto.CreateSavingsLogRequest;
 import com.secure_tikkle.dto.GoalDetail;
 import com.secure_tikkle.dto.GoalSummaryDto;
 import com.secure_tikkle.dto.SavingsLogDto;
+import com.secure_tikkle.rank.repo.RankGroupMemberRepo;
+import com.secure_tikkle.rank.repo.RankGroupRepo;
 import com.secure_tikkle.repository.GoalRepository;
 import com.secure_tikkle.repository.SavingsLogRepository;
 import com.secure_tikkle.repository.UserRepository;
@@ -30,6 +36,8 @@ public class GoalService {
     private final SavingsLogRepository savingsLogRepository;
     private final UserRepository userRepository;
     private final BadgeService badgeService;
+    private final RankGroupRepo groupRepo;          // ✅ 컴파일 에러 해결
+    private final RankGroupMemberRepo memberRepo;
 
     // 목표 생성
     @Transactional
@@ -162,6 +170,8 @@ public class GoalService {
         long amt = log.getAmount() == null ? 0 : log.getAmount();
         goal.setCurrentAmount(cur - amt);
         savingsLogRepository.delete(log);
+        
+        badgeService.evaluateOnSavingsLog(userId);
     }
 
     // 로그 수정 (누적액 보정)
@@ -180,7 +190,11 @@ public class GoalService {
 
         long cur = goal.getCurrentAmount() == null ? 0 : goal.getCurrentAmount();
         goal.setCurrentAmount(cur - before + after);
+        
+        badgeService.evaluateOnSavingsLog(userId);
         return log;
+        
+        
     }
     
 	// 공통 진행률 계산 함수 추가
@@ -200,6 +214,29 @@ public class GoalService {
         int prog = progressOf(cur, tgt);
         return new GoalSummaryDto(g.getId(), g.getTitle(), tgt, cur, prog);
       
+    }
+    
+    @Transactional
+    public RankGroup createRankGroup(Long ownerId, String name) {
+        RankGroup g = groupRepo.save(                      
+            RankGroup.builder()
+                .name(name)
+                .ownerId(ownerId)
+                .createdAt(Instant.now())                  
+                .build()
+        );
+
+        if (!memberRepo.existsByGroupIdAndUserId(g.getId(), ownerId)) {
+            memberRepo.save(
+                RankGroupMember.builder()
+                    .groupId(g.getId())
+                    .userId(ownerId)
+                    .role("OWNER")                        
+                    .joinedAt(Instant.now())              
+                    .build()
+            );
+        }
+        return g;
     }
     
 }
