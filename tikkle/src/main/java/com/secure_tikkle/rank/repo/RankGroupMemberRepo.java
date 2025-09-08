@@ -14,4 +14,5 @@ public interface RankGroupMemberRepo extends JpaRepository<RankGroupMember, Long
     List<RankGroupMember> findByGroupId(Long groupId);
 
     void deleteByGroupIdAndUserId(Long groupId, Long userId);
+    
 }
