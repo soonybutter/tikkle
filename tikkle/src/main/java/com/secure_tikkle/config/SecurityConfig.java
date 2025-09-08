@@ -6,15 +6,10 @@ import com.secure_tikkle.security.LoginSuccessHandler;
 import jakarta.servlet.http.HttpServletResponse;
 import lombok.RequiredArgsConstructor;
 
-import java.net.URLEncoder;
-import java.nio.charset.StandardCharsets;
-
 import org.springframework.context.annotation.*;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.web.SecurityFilterChain;
-import org.springframework.security.web.authentication.SimpleUrlAuthenticationSuccessHandler;
-import org.springframework.security.web.util.matcher.AntPathRequestMatcher;
-import org.springframework.web.cors.CorsConfigurationSource;
+import org.springframework.http.HttpMethod; 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -29,15 +24,21 @@ public class SecurityConfig {
     
     @Bean
     public SecurityFilterChain filterChain(HttpSecurity http) throws Exception {
-    	http
-    	  .authorizeHttpRequests(auth -> auth
-    	      .requestMatchers("/", "/login", "/oauth2/**",
-    	                       "/auth/**", "/me", "/api/me",
-    	                       "/api/health",
-    	                       "/debug/**", "/error",
-    	                       "/share/",
-    	                       "/v3/api-docs/**", "/swagger-ui.html", "/swagger-ui/**").permitAll()   
-    	      .anyRequest().authenticated()
+    		http
+    			.authorizeHttpRequests(auth -> auth
+    	        // ✅ 뉴스/상태 체크는 누구나 접근 가능
+    	        .requestMatchers(HttpMethod.GET, "/api/news").permitAll()
+    	        .requestMatchers(HttpMethod.GET, "/api/me", "/api/health").permitAll()
+
+    	        // 정적/공개 라우트
+    	        .requestMatchers("/", "/login", "/oauth2/**",
+    	                         "/auth/**", "/me",
+    	                         "/debug/**", "/error",
+    	                         "/share/**",
+    	                         "/v3/api-docs/**", "/swagger-ui.html", "/swagger-ui/**").permitAll()
+
+    	        // 그 외 API는 인증
+    	        .anyRequest().authenticated()
     	  )
     	  .oauth2Login(oauth -> oauth
     			  .successHandler((req, res, auth) -> {
@@ -62,8 +63,6 @@ public class SecurityConfig {
         
         return http.build();
         
-        
     }
-    
     
 }
