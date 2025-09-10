@@ -7,62 +7,73 @@ import jakarta.servlet.http.HttpServletResponse;
 import lombok.RequiredArgsConstructor;
 
 import org.springframework.context.annotation.*;
+import org.springframework.http.HttpMethod;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.web.SecurityFilterChain;
-import org.springframework.http.HttpMethod; 
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
+
+// CORS Bean에 필요
+import org.springframework.web.cors.CorsConfiguration;
+import org.springframework.web.cors.CorsConfigurationSource;
+import org.springframework.web.cors.UrlBasedCorsConfigurationSource;
+
+import java.util.List;
 
 @Configuration
 @RequiredArgsConstructor
 public class SecurityConfig {
 
     private final CustomOAuth2UserService customOAuth2UserService;
-    private static final Logger log = LoggerFactory.getLogger(SecurityConfig.class);
     private final LoginSuccessHandler loginSuccessHandler;
-    
-    
+
     @Bean
     public SecurityFilterChain filterChain(HttpSecurity http) throws Exception {
-    		http
-    			.authorizeHttpRequests(auth -> auth
-    	        // ✅ 뉴스/상태 체크는 누구나 접근 가능
-    	        .requestMatchers(HttpMethod.GET, "/api/news").permitAll()
-    	        .requestMatchers(HttpMethod.GET, "/api/me", "/api/health").permitAll()
+        http
+            .authorizeHttpRequests(auth -> auth
+        		  
+        	.requestMatchers(HttpMethod.OPTIONS, "/**").permitAll()	  
+            // ✅ 헬스/인포는 무조건 공개
+            .requestMatchers("/actuator/health", "/actuator/health/**", "/actuator/info").permitAll()
 
-    	        // 정적/공개 라우트
-    	        .requestMatchers("/", "/login", "/oauth2/**",
-    	                         "/auth/**", "/me",
-    	                         "/debug/**", "/error",
-    	                         "/share/**",
-    	                         "/v3/api-docs/**", "/swagger-ui.html", "/swagger-ui/**").permitAll()
+            // 공개 API
+            .requestMatchers(HttpMethod.GET, "/api/news").permitAll()
+            .requestMatchers(HttpMethod.GET, "/api/me", "/api/health").permitAll()
 
-    	        // 그 외 API는 인증
-    	        .anyRequest().authenticated()
-    	  )
-    	  .oauth2Login(oauth -> oauth
-    			  .successHandler((req, res, auth) -> {
-		          String front = System.getenv().getOrDefault("FRONT_ORIGIN", "http://localhost:5173");
-		          res.sendRedirect(front + "/"); //  로그인 성공 시 홈으로
-    			  })
-    	  )
-    	  .logout(logout -> logout
-    	            .logoutUrl("/api/logout")           // 로그아웃 URL
-    	            .deleteCookies("JSESSIONID")        // 세션 쿠키 제거
-    	            .invalidateHttpSession(true)        // 서버 세션 무효화
-    	            .clearAuthentication(true)
-    	            .logoutSuccessHandler((req, res, auth) -> {
-    	                res.setStatus(HttpServletResponse.SC_OK);
-    	                res.setContentType("application/json;charset=UTF-8");
-    	                res.getWriter().write("{\"ok\":true}");
-    	  })
-    	);
-            
-        http.cors(c -> {});
-        http.csrf(csrf -> csrf.disable());
-        
+            // 정적/공개 라우트
+            .requestMatchers(
+              "/", "/login", "/oauth2/**", "/auth/**", "/me",
+              "/debug/**", "/error", "/share/**",
+              "/v3/api-docs/**", "/swagger-ui.html", "/swagger-ui/**"
+            ).permitAll()
+
+            // 나머지는 인증
+            .anyRequest().authenticated()
+          )
+
+          // OAuth2: 사용자 정보 서비스 + 성공 핸들러 사용
+          .oauth2Login(oauth -> oauth
+            .userInfoEndpoint(u -> u.userService(customOAuth2UserService))
+            .successHandler(loginSuccessHandler)
+          )
+
+          // 로그아웃 응답 JSON
+          .logout(logout -> logout
+            .logoutUrl("/api/logout")
+            .deleteCookies("JSESSIONID")
+            .invalidateHttpSession(true)
+            .clearAuthentication(true)
+            .logoutSuccessHandler((req, res, auth) -> {
+              res.setStatus(HttpServletResponse.SC_OK);
+              res.setContentType("application/json;charset=UTF-8");
+              res.getWriter().write("{\"ok\":true}");
+            })
+          )
+
+          // CORS/CSRF
+          .cors(cors -> {})     // 아래 corsConfigurationSource() Bean을 사용
+          .csrf(csrf -> csrf.disable());
+
         return http.build();
-        
     }
+
     
 }

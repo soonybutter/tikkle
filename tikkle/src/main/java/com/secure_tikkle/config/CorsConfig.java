@@ -1,38 +1,51 @@
 package com.secure_tikkle.config;
 
 import java.util.List;
-
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
-
-import org.springframework.web.cors.CorsConfigurationSource;
-import org.springframework.web.cors.CorsConfiguration;
+import org.springframework.web.cors.*;
 import org.springframework.web.cors.UrlBasedCorsConfigurationSource;
-
+import org.springframework.web.servlet.config.annotation.*;
 
 @Configuration
 public class CorsConfig {
 
-	@Bean
-	  public CorsConfigurationSource corsConfigurationSource() {
-		
-	    var c = new CorsConfiguration();
-	    c.setAllowCredentials(true); // 프론트에서 credentials: 'include' 사용 시 필수
+  // 전역 CORS 설정 (Security의 http.cors()가 이 Bean을 사용)
+  @Bean
+  public CorsConfigurationSource corsConfigurationSource() {
+    CorsConfiguration c = new CorsConfiguration();
+    c.setAllowCredentials(true);
+    c.setAllowedOriginPatterns(List.of(
+        "https://*.tikkle.pages.dev", // 프리뷰 포함
+        "https://tikkle.pages.dev",   // 프로덕션
+        "http://localhost:*",
+        "http://127.0.0.1:*"
+    ));
+    c.setAllowedMethods(List.of("GET","POST","PUT","PATCH","DELETE","OPTIONS"));
+    c.setAllowedHeaders(List.of("*"));
 
-	    // 개발 편의 위해 5173, 5174 , 127.0.0.1 허용
-	    c.setAllowedOriginPatterns(List.of(
-	        "http://localhost:*",
-	        "http://127.0.0.1:*"
-	    ));
+    UrlBasedCorsConfigurationSource src = new UrlBasedCorsConfigurationSource();
+    src.registerCorsConfiguration("/**", c);
+    return src;
+  }
 
-	    c.setAllowedMethods(List.of("GET","POST","PUT","PATCH","DELETE","OPTIONS"));
-	    c.setAllowedHeaders(List.of("*"));
-	    // 필요시 노출 헤더
-	    // c.setExposedHeaders(List.of("Set-Cookie"));
-
-	    var src = new UrlBasedCorsConfigurationSource();
-	    src.registerCorsConfiguration("/**", c);
-	    
-	    return src;
-	  }
+  // 보수책: MVC 레벨에서도 동일 매핑 추가(일부 조합에서 도움됨)
+  @Bean
+  public WebMvcConfigurer webMvcCors() {
+    return new WebMvcConfigurer() {
+      @Override
+      public void addCorsMappings(CorsRegistry registry) {
+        registry.addMapping("/**")
+          .allowedOriginPatterns(
+              "https://*.tikkle.pages.dev",
+              "https://tikkle.pages.dev",
+              "http://localhost:*",
+              "http://127.0.0.1:*"
+          )
+          .allowedMethods("GET","POST","PUT","PATCH","DELETE","OPTIONS")
+          .allowedHeaders("*")
+          .allowCredentials(true);
+      }
+    };
+  }
 }
