@@ -28,24 +28,20 @@ public class SecurityConfig {
     @Bean
     public SecurityFilterChain filterChain(HttpSecurity http) throws Exception {
         http
-            // ✅ 반드시 켜기: 우리가 아래 CORS Bean을 쓰게 함
-            .cors(Customizer.withDefaults())
+            // ✅ CORS 사용 (아래 CORS Bean과 연결)
+            .cors(cors -> {})
+
+            // ✅ CSRF 끄기(REST + 쿠키 사용 시 간단하게)
             .csrf(csrf -> csrf.disable())
 
+            // ✅ 권한 규칙 (OPTIONS, actuator, 공개 API 허용)
             .authorizeHttpRequests(auth -> auth
-                // ✅ 프리플라이트는 무조건 통과
-                .requestMatchers(HttpMethod.OPTIONS, "/**").permitAll()
-
-                // ✅ 헬스/인포는 공개
-                .requestMatchers("/actuator/health", "/actuator/health/**", "/actuator/info").permitAll()
-
-                // ✅ 비로그인에서도 호출할 수 있게 공개
-                .requestMatchers(HttpMethod.GET, "/api/me", "/api/health").permitAll()
-
-                // ✅ 로그인/리다이렉트 경로 공개
-                .requestMatchers("/oauth2/**", "/login/**").permitAll()
-
-                // 나머지는 인증 필요
+                .requestMatchers(HttpMethod.OPTIONS, "/**").permitAll()       // ← 프리플라이트 열기
+                .requestMatchers("/actuator/**").permitAll()                  // ← health 302 방지
+                .requestMatchers(HttpMethod.GET, "/api/me", "/api/health", "/api/news").permitAll()
+                .requestMatchers("/", "/login", "/oauth2/**", "/auth/**", "/me",
+                                 "/debug/**", "/error", "/share/**",
+                                 "/v3/api-docs/**", "/swagger-ui.html", "/swagger-ui/**").permitAll()
                 .anyRequest().authenticated()
             )
 
@@ -74,7 +70,6 @@ public class SecurityConfig {
     public CorsConfigurationSource corsConfigurationSource() {
         CorsConfiguration c = new CorsConfiguration();
         c.setAllowCredentials(true);
-        // Cloudflare Pages 정식/프리뷰 모두 허용
         c.setAllowedOriginPatterns(List.of(
             "https://tikkle.pages.dev",
             "https://*.tikkle.pages.dev"
