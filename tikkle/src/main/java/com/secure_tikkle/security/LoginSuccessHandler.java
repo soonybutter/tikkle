@@ -22,7 +22,7 @@ public class LoginSuccessHandler implements AuthenticationSuccessHandler {
 
   private final ObjectMapper mapper = new ObjectMapper();
 
-  // ✅ 기본값( localhost ) 제거: 반드시 프로퍼티에서 받게 함
+  
   @Value("${app.frontend-url}")
   private String frontendUrl;
 
@@ -31,7 +31,8 @@ public class LoginSuccessHandler implements AuthenticationSuccessHandler {
 
   @Override
   public void onAuthenticationSuccess(HttpServletRequest req, HttpServletResponse res, Authentication auth) throws IOException {
-    OAuth2User principal = (auth instanceof OAuth2User) ? (OAuth2User) auth.getPrincipal() : null;
+	  OAuth2User principal =
+			    (auth != null && auth.getPrincipal() instanceof OAuth2User o) ? o : null;
 
     Map<String, Object> attrs = principal != null ? principal.getAttributes() : Collections.emptyMap();
     Map<String, Object> me = new LinkedHashMap<>();
@@ -50,7 +51,7 @@ public class LoginSuccessHandler implements AuthenticationSuccessHandler {
       return;
     }
 
-    // ✅ pages.dev에서 시작한 로그인은 같은 Origin으로 돌려보냄 (프리뷰/프로덕션 모두)
+    
     String origin = req.getHeader("Origin");
     String target = frontendUrl; // 기본: 프로퍼티 값
     if (origin != null && ORIGIN_WHITELIST.matcher(origin).matches()) {
