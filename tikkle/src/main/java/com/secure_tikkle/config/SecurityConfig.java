@@ -67,22 +67,19 @@ public class SecurityConfig {
 
     @Bean
     public CorsConfigurationSource corsConfigurationSource() {
-        CorsConfiguration c = new CorsConfiguration();
-        c.setAllowCredentials(true);
-        // 프리뷰/프로덕션 + (원하면 로컬 dev도 허용)
-        c.setAllowedOriginPatterns(List.of(
-            "https://tikkle.pages.dev",
-            "https://*.tikkle.pages.dev"
-            // "http://localhost:*",        // 로컬 개발 시 열고
-            // "http://127.0.0.1:*"
-        ));
-        // 메서드/헤더는 전부 허용
-        c.addAllowedMethod(CorsConfiguration.ALL);
-        c.addAllowedHeader(CorsConfiguration.ALL);
-        c.setMaxAge(86400L);
+      CorsConfiguration c = new CorsConfiguration();
+      c.setAllowCredentials(true);
+      // Cloudflare Pages (프로덕션+프리뷰)만 허용
+      c.setAllowedOriginPatterns(List.of(
+        "https://tikkle.pages.dev",
+        "https://*.tikkle.pages.dev"
+      ));
+      c.setAllowedMethods(List.of("GET","POST","PUT","PATCH","DELETE","OPTIONS"));
+      c.setAllowedHeaders(List.of("Authorization","Content-Type","X-Requested-With"));
+      c.setMaxAge(86400L);
 
-        UrlBasedCorsConfigurationSource source = new UrlBasedCorsConfigurationSource();
-        source.registerCorsConfiguration("/**", c);
-        return source;
+      UrlBasedCorsConfigurationSource source = new UrlBasedCorsConfigurationSource();
+      source.registerCorsConfiguration("/**", c);
+      return source;
     }
 }
