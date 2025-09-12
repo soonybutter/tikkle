@@ -72,7 +72,8 @@ public class SecurityConfig {
       // Cloudflare Pages (프로덕션+프리뷰)만 허용
       c.setAllowedOriginPatterns(List.of(
         "https://tikkle.pages.dev",
-        "https://*.tikkle.pages.dev"
+        "https://*.tikkle.pages.dev",
+        "https://tikkle-api.koreacentral.cloudapp.azure.com"
       ));
       c.setAllowedMethods(List.of("GET","POST","PUT","PATCH","DELETE","OPTIONS"));
       c.setAllowedHeaders(List.of("Authorization","Content-Type","X-Requested-With"));
