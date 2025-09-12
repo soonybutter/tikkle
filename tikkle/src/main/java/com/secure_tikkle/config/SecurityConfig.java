@@ -1,6 +1,5 @@
 package com.secure_tikkle.config;
 
-import com.secure_tikkle.security.CustomOAuth2UserService;
 import com.secure_tikkle.security.LoginSuccessHandler;
 
 import jakarta.servlet.http.HttpServletResponse;
@@ -8,7 +7,7 @@ import lombok.RequiredArgsConstructor;
 
 import org.springframework.context.annotation.*;
 import org.springframework.http.HttpMethod;
-import org.springframework.security.config.Customizer;
+
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.web.SecurityFilterChain;
 
@@ -22,7 +21,7 @@ import java.util.List;
 @RequiredArgsConstructor
 public class SecurityConfig {
 
-    private final CustomOAuth2UserService customOAuth2UserService;
+    
     private final LoginSuccessHandler loginSuccessHandler;
 
     @Bean
@@ -46,7 +45,7 @@ public class SecurityConfig {
             )
 
             .oauth2Login(oauth -> oauth
-                .userInfoEndpoint(u -> u.userService(customOAuth2UserService))
+                
                 .successHandler(loginSuccessHandler)
             )
 
