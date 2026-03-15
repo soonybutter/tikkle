@@ -68,6 +68,11 @@ cookies.txt
 *.jks
 *.keystore
 
+### Backup files ###
+*.bak
+*.bak.*
+*~
+
 ### OS ###
 .DS_Store
 Thumbs.db
